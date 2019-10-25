@@ -19,7 +19,7 @@ from learning!
 
 ## Differences with the original kubernetes-the-hard-way and others
 
-`*Note:* This tutorial has been forked from [Kubernetes The Hard Way](https://github.com/kelseyhightower/kubernetes-the-hard-way) wrote by Kelsey Hightower and it is based also on [Kubernetes The Hard Way (Openstack Edition)](https://github.com/e-minguez/kubernetes-the-hard-way-openstack) by Eduardo Mínguez. Special thanks to both.`
+> **Note:** This tutorial has been forked from [Kubernetes The Hard Way](https://github.com/kelseyhightower/kubernetes-the-hard-way) wrote by Kelsey Hightower and it is based also on [Kubernetes The Hard Way (Openstack Edition)](https://github.com/e-minguez/kubernetes-the-hard-way-openstack) by Eduardo Mínguez. Special thanks to both.
 
 The main difference is that instead of running our cluster on top of an IaaS solution as Google Cloud or OpenStack, we aim to deploy a Kubernetes cluster on a baremetal server. We will leverage the virtualization capabilities that comes with GNU/Linux (libvirt/KVM/QEMU) to easily provide a similar *virtual infrastructure*. Note that in this case, we could use any spare baremetal server or laptop (with enough resources) running a GNU/Linux distribution.
 

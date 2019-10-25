@@ -13,8 +13,8 @@ Memory: 128.0 GB
 
 During this tutorial I am about to configure a high availability Kubernetes cluster made by the following virtual machines. Note that all will run virtualized in the baremetal server:
 
-   VM Name      | Purpose    |   OS     | vCPUs | Memory | Disk  |
-| ------------- | ---------- | ---------|-------|--------|-------|---
+|  VM Name      | Purpose    |   OS     | vCPUs | Memory | Disk  |
+| ------------- | ---------- | ---------|-------|--------|-------|
 | master00      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
 | master01      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
 | master02      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
