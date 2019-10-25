@@ -1,8 +1,6 @@
 # Provisioning a CA and Generating TLS Certificates
 
-In this lab you will provision a [PKI Infrastructure](https://en.wikipedia.org/wiki/Public_key_infrastructure) using CloudFlare's PKI toolkit, [cfssl](https://github.com/cloudflare/cfssl), then use it to bootstrap a Certificate Authority, and generate TLS certificates for the following components: etcd, kube-apiserver, kube-controller-manager, kube-scheduler & kubelet.
-
-**The `kube-proxy` in this lab is replaced by `kube-router` instead.**
+In this lab you will provision a [PKI Infrastructure](https://en.wikipedia.org/wiki/Public_key_infrastructure) using CloudFlare's PKI toolkit, [cfssl](https://github.com/cloudflare/cfssl), then use it to bootstrap a Certificate Authority, and generate TLS certificates for the following components: etcd, kube-apiserver, kube-controller-manager, kube-scheduler, kubelet and kube-proxy
 
 ## Certificate Authority
 
@@ -295,6 +293,8 @@ The `kubernetes-the-hard-way` static IP address will be included in the list of 
 
 Generate the Kubernetes API Server certificate and private key:
 
+> NOTE: KUBERNETES_PUBLIC_ADDRESS is assigned to the IP address of the baremetal server. This IP will be used further in the tutorial to allow access to the API remotely.
+
 ```
 {
 
@@ -330,6 +330,7 @@ cfssl gencert \
 
 }
 ```
+
 > The Kubernetes API server is automatically assigned the `kubernetes` internal dns name, which will be linked to the first IP address (`10.32.0.1`) from the address range (`10.32.0.0/24`) reserved for internal cluster services during the [control plane bootstrapping](08-bootstrapping-kubernetes-controllers.md#configure-the-kubernetes-api-server) lab.
 
 Results:
@@ -389,15 +390,12 @@ service-account.pem
 Copy the appropriate certificates and private keys to each worker instance:
 
 ```
-# for node in worker00 worker01 worker02  
-  do 
-	kcli scp ${node}-key.pem ${node}:~ 
+# for node in worker00 worker01 worker02; dp
+  	for key in ${node}-key.pem ${node}.pem kube-proxy-key.pem kube-proxy.pem do 
+		kcli scp ${key} ${node}:~ 
+	done
   done
 
-# for node in worker00 worker01 worker02
-  do 
-  	kcli scp ${node}.pem ${node}:~ 
-  done
 ```
 
 Copy the appropriate certificates and private keys to each controller instance:
@@ -411,6 +409,6 @@ Copy the appropriate certificates and private keys to each controller instance:
 
 ```
 
-> The `kube-controller-manager`, `kube-scheduler`, and `kubelet` client certificates will be used to generate client authentication configuration files in the next lab.
+> The `kube-proxy`, `kube-controller-manager`, `kube-scheduler`, and `kubelet` client certificates will be used to generate client authentication configuration files in the next lab.
 
 Next: [Generating Kubernetes Configuration Files for Authentication](05-kubernetes-configuration-files.md)
