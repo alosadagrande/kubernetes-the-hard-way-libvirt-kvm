@@ -293,12 +293,12 @@ The `kubernetes-the-hard-way` static IP address will be included in the list of 
 
 Generate the Kubernetes API Server certificate and private key:
 
-> NOTE: KUBERNETES_PUBLIC_ADDRESS is assigned to the IP address of the baremetal server. This IP will be used further in the tutorial to allow access to the API remotely.
+> NOTE: KUBERNETES_BAREMETAL_ADDRESS is assigned to the IP address of the baremetal server. This IP will be used further in the tutorial to allow access to the API remotely.
 
 ```
 {
 
-KUBERNETES_PUBLIC_ADDRESS=10.19.138.41
+KUBERNETES_BAREMETAL_ADDRESS=10.19.138.41
 KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
 
 cat > kubernetes-csr.json <<EOF
@@ -324,7 +324,7 @@ cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
   -config=ca-config.json \
-  -hostname=loadbalancer.${DOMAIN},10.32.0.1,192.168.111.68,192.168.111.72,192.168.111.173,192.168.111.230,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -hostname=loadbalancer.${DOMAIN},10.32.0.1,192.168.111.68,192.168.111.72,192.168.111.173,192.168.111.230,${KUBERNETES_BAREMETAL_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
   -profile=kubernetes \
   kubernetes-csr.json | cfssljson -bare kubernetes
 

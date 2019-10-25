@@ -4,7 +4,7 @@ In this lab you will generate [Kubernetes configuration files](https://kubernete
 
 ## Client Authentication Configs
 
-In this section you will generate kubeconfig files for the `controller manager`, `kubelet` and `scheduler` clients and the `admin` user.
+In this section you will generate kubeconfig files for the `controller manager`, `kubelet`, `kube-proxy` and `scheduler` clients and the `admin` user.
 
 ### Kubernetes Public IP Address
 
@@ -13,8 +13,10 @@ Each kubeconfig requires a Kubernetes API Server to connect to. To support high 
 Retrieve the `kubernetes-the-hard-way` static IP address:
 
 ```
-KUBERNETES_PUBLIC_ADDRESS=192.168.111.68
+KUBERNETES_PUBLIC_ADDRESS=$(kcli info vm loadbalancer | grep "ip:" | awk '{print$2}' |  tr -d '[:space:]')
 ```
+
+> KUBERNETES_PUBLIC_ADDRESS is the loadbalancer IP address. This be the entry point for all the API requests coming from all the instances inside the Kubernetes cluster and from the baremetal itself.
 
 ### The kubelet Kubernetes Configuration File
 
@@ -192,17 +194,25 @@ admin.kubeconfig
 
 ## Distribute the Kubernetes Configuration Files
 
-Copy the appropriate `kubelet` kubeconfig file to each worker instance:
+Copy the appropriate `kubelet` and `kube-proxy` kubeconfig file to each worker instance:
 
 ```
-[root@smc-master k8s-th]# for node in worker00 worker01 worker02; do kcli scp ${node}.kubeconfig ${node}:~; done
+for node in worker00 worker01 worker02
+do 
+	kcli scp ${node}.kubeconfig ${node}:~
+	kcli scp kube-proxy.kubeconfig ${node}:~
+done
 
 ```
 
 Copy the appropriate `kube-controller-manager` and `kube-scheduler` kubeconfig files to each controller instance:
 
 ```
-# for node in master00 master01 master02; do for kubeconfig in admin.kubeconfig kube-controller-manager.kubeconfig kube-scheduler.kubeconfig; do kcli scp ${kubeconfig} ${node}:~; done ; done
+for node in master00 master01 master02; do
+	for kubeconfig in admin.kubeconfig kube-controller-manager.kubeconfig kube-scheduler.kubeconfig; do 
+		kcli scp ${kubeconfig} ${node}:~
+	done 
+done
 
 ```
 
