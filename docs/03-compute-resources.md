@@ -8,26 +8,39 @@ The Kubernetes [networking model](https://kubernetes.io/docs/concepts/cluster-ad
 
 > Setting up network policies is out of scope for this tutorial.
 
-### Public Network
-The public network is a network that contains external access and can be
-reached by the outside world. The public network creation can be only done by
-an OpenStack administrator.
+### Virtual Machines Network
 
-The following commands provide an example of creating an OpenStack provider
-network for public network access.
+The VM network is a network where all the VMs are executed. Actually this is a virtual network configured as type 'nated', e.g. all VMs will be placed in the same network address range, they will have access to the outside world using the baremetal server virtual bridge as a default gateway (NAT). However, take into account that any remote server won't be able to reach any VM since they are behind the baremetal server.
 
-As an OpenStack administrator:
+> The baremetal server, as it is part of the virtual network (gateway), can connect to any of the VMs. So, as we will se further in this tutorial, anytime you need to execute commands on any of the VMs, you need to connect first to the baremetal server.
+
+By default as commented in the previous sections, there is a default virtual network named as default configured:
+```
+kcli list network
+```
+Output expected
 
 ```
-[root@smc-master k8s-th]# kcli list network
-Listing Networks...
-+---------+--------+------------------+------+---------+------+
+----+------------------+------+---------+------+
 | Network |  Type  |       Cidr       | Dhcp |  Domain | Mode |
 +---------+--------+------------------+------+---------+------+
 | default | routed | 192.168.122.0/24 | True | default | nat  |
 +---------+--------+------------------+------+---------+------+
+```
 
-[root@smc-master k8s-th]# kcli create network -c 192.168.111.0/24 k8s-net --domain k8s-thw.local
+We are going to create a new virtual network to place all the Kubernetes cluster resources:
+
+* The network address range is 192.168.111.0/24
+* Name of the network is k8s-net
+* The domain of this network is k8s-thw.local. This is important since all VMs in this virtual network will get this domain name as part of its fully qualified name.
+
+```
+kcli create network -c 192.168.111.0/24 k8s-net --domain k8s-thw.local
+```
+
+Output expected:
+
+```
 Network k8s-net deployed
 [root@smc-master k8s-th]# kcli list network
 Listing Networks...
@@ -39,68 +52,83 @@ Listing Networks...
 +---------+--------+------------------+------+---------------+------+
 ```
 
-### Images
-To be able to create instances, an image should be provided. Depending on the
-OpenStack environment an image catalog can be provided. In this guide we will
-use CentOS 7 as the base operating system. Follow the next steps to upload a new
-CentOS 7 image:
+## Images
 
-Download the latest CentOS 7 Generic Cloud image. 
+To be able to create instances, an image should be provided. In this guide we will use CentOS 7 as the base operating system for all the VMs. With kcli this is super easy, just download the cloud CentOS 7 image with kcli command line:
 
 ```
-[root@smc-master k8s-th]# kcli download image centos7 --pool default
-Grabbing image CentOS-7-x86_64-GenericCloud.qcow2...
+kcli download image centos7 --pool default
 ```
 
-> Basically this is donwloading the latest CentOS 7 cloud image and place it in the default pool we already defined  (/var/lib/libvirt/images/)
+> Basically kcli is donwloading the latest CentOS 7 cloud image and placing it in the default pool we already defined  (/var/lib/libvirt/images/)
 
 
-### DNS
+## DNS
 
-It is required to have a proper DNS configuration. If not using DNSaaS, you can
-create an instance and setup a proper DNS following the next instructions.
+It is required to have a proper DNS configuration, that must resolve direct and reverse queries of all the VMs. Unlike other similar tutorials, kcli makes really easy to configure a proper DNS resolution of each VM. Everytime you create a new instance it is possible to create a DNS record into libvirt dnsmasq. It also can even create a /etc/hosts record in the host that executes the instance creation. This information can be found in the kcli official documentation, section [ip, dns and host reservations](https://kcli.readthedocs.io/en/latest/#ip-dns-and-host-reservations)
 
-Create a security group to allow DNS communication within the internal network:
+> There is no need to maintain a DNS server since DNS record can be automatically created when launching a new instance
+
+
+## Configuring SSH Access
+
+SSH will be used to configure the loadbalancer, controller and worker instances. By leveraging kcli there is no need to manually exchange the ssh key among all the instances. Kcli automatically injects (using cloudinit) the public ssh key from the baremetal server to all the instances at creation time. Therefore, once the instance is up and running you can easily running `kcli ssh vm_name`
+
+
+## Compute Instances
+
+Each compute instance will be provisioned with a fixed private IP address to simplify the Kubernetes bootstrapping process.
+
+### Kubernetes Controllers
+
+Create three compute instances which will host the Kubernetes **control plane**. Basically we are creating 3 new instances configured with:
+
+- CentOS image as OS
+- 50 GB disk
+- Connected to the k8s-net (192.168.111.0/24)
+- 16GB of memory and 4 vCPus
+- Create a DNS record, in this case ${node}.k8s-thw.local which will included in libvirt's dnsmasq (reservedns=yes)
+- Reserve the IP, so it is not available to any other VM (reserveip=yes)
+- Create an record into baremetal server's /etc/host so it can be reached from outside the virtual network domain as well. (reserveip=yes)
+- Execute "yum update -y" once the server is up and running. This command is injected into the cloudinit, so all instances are up to date since the very beginning.
 
 ```
-[root@smc-master k8s-th]# getent hosts 192.168.111.68
-192.168.111.68  loadbalancer loadbalancer.k8s-net
-
-[root@smc-master k8s-th]# kcli ssh master01 ping loadbalancer
-Warning: Permanently added '192.168.111.173' (ECDSA) to the list of known hosts.
-PING loadbalancer.k8s-thw.local (192.168.111.68) 56(84) bytes of data.
-64 bytes from loadbalancer.k8s-thw.local (192.168.111.68): icmp_seq=1 ttl=64 time=0.370 ms
-64 bytes from loadbalancer.k8s-thw.local (192.168.111.68): icmp_seq=2 ttl=64 time=0.280 ms
-
+# for node in master00 master01 master02; do kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update"] -P reservedns=yes -P reserveip=yes -P reservehost=yes ${node}; done
 ```
 
-# Configuring SSH Access
-
-SSH will be used to configure the controller and worker instances. The `openstack create` command contained a specific ssh key that has been generated
-previously and has been injected in the instances in order to be able to
-connect to them without any password prompt.
-
-To avoid asking to add the key to the `~/.ssh/known_hosts` file, the following
-snippet will do this up front:
+Verify your masters are up and running
 
 ```
-for host in $(openstack server list -f value -c Name); do
-  ssh-keyscan -H ${host} >> ~/.ssh/known_hosts
-done
+[root@smc-master k8s-th]# kcli list vm
++--------------+--------+-----------------+------------------------------------+-------+---------+--------+
+|     Name     | Status |       Ips       |               Source               |  Plan | Profile | Report |
++--------------+--------+-----------------+------------------------------------+-------+---------+--------+
+|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
+|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
+|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
++--------------+--------+-----------------+------------------------------------+-------+---------+--------+
 ```
 
 ### Load Balancer
-In order to have a proper Kubernetes high available environment, a Load balancer
-is required to distribute the API load. If not using LBaaS, you can create an
-instance and setup a proper Load balancer following the next instructions.
 
-Create an instance to host the load balancer service. In this case the CentOS image is used.
+In order to have a proper Kubernetes high available environment, a Load balancer is required to distribute the API load. In this case we are going to create an specific instance to run a HAProxy loadbalancer service. First, create an instance to host the load balancer service. Below we are about to create a new instance with:
 
 ```
-# kcli create vm -i centos7 -P disks=[20] -P nets=[k8s-net] -P memory=2048 -P numcpus=2 -P cmds=["yum -y update"] -P reserverdns=yes -P reserverip=yes loadbalancer
+# kcli create vm -i centos7 -P disks=[20] -P nets=[k8s-net] -P memory=2048 -P numcpus=2 -P cmds=["yum -y update"] -P reserverdns=yes -P reserverip=yes -P reserverhost=yes loadbalancer
 ```
+Check your **loadbalancer** instance is up and running
 
-
+```
+[root@smc-master k8s-th]# kcli list vm
++--------------+--------+-----------------+------------------------------------+-------+---------+--------+
+|     Name     | Status |       Ips       |               Source               |  Plan | Profile | Report |
++--------------+--------+-----------------+------------------------------------+-------+---------+--------+
+| loadbalancer |   up   |  192.168.111.68 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
+|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
+|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
+|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
++--------------+--------+-----------------+------------------------------------+-------+---------+--------+
+```
 #### Load balancer service
 
 The following steps shows how to install a load balancer service using HAProxy in the instance previously created.
@@ -108,7 +136,7 @@ The following steps shows how to install a load balancer service using HAProxy i
 First, connect to the instance:
 
 ```
-$ kcli ssh loadbalancer
+kcli ssh loadbalancer
 ```
 
 Install and configure HAProxy:
@@ -185,51 +213,19 @@ Start and enable the service
 sudo systemctl enable haproxy --now
 ```
 
-Finally, update all packages to latest version and reboot the instance just in
-case:
-
-```
-sudo yum clean all
-sudo yum update -y
-sudo reboot
-```
-
-## Compute Instances
-
-Each compute instance will be provisioned with a fixed private IP address to simplify the Kubernetes bootstrapping process.
-
-### Kubernetes Controllers
-
-Create three compute instances which will host the Kubernetes control plane:
-
-```
-[root@smc-master k8s-th]# for node in master00 master01 master02; do kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update"] -P reservedns=yes -P reserveip=yes -P reservehost=yes ${node}; done
-
-
-[root@smc-master k8s-th]# kcli list vm
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-|     Name     | Status |       Ips       |               Source               |  Plan | Profile | Report |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-| loadbalancer |   up   |  192.168.111.68 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-```
 
 ### Kubernetes Workers
 
-Each worker instance requires a pod subnet allocation from the Kubernetes cluster CIDR range. The pod subnet allocation will be used to configure container networking in a later exercise. The `pod-cidr` instance metadata will be used to expose pod subnet allocations to compute instances at runtime.
+Create three compute instances which will host the Kubernetes worker nodes:
 
 > The Kubernetes cluster CIDR range is defined by the Controller Manager's `--cluster-cidr` flag. In this tutorial the cluster CIDR range will be set to `10.200.0.0/16`, which supports 254 subnets.
 
-Create three compute instances which will host the Kubernetes worker nodes:
-
-
+> Each worker instance requires a pod subnet allocation from the Kubernetes cluster CIDR range. The pod subnet allocation will be used to configure container networking in a later exercise. The `/home/centos/pod_cidr.txt` file contains the subnet assigned to each worker.
 
 ```
-# for node in worker00 worker01 worker02; do kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update"] -P reservedns=yes -P reserveip=yes -P reservehost=yes ${node}; done
-
+# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update",'echo "10.200.0.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker00
+# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update",'echo "10.200.1.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker01
+# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update",'echo "10.200.2.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker02
 ```
 
 ### Verification
@@ -256,17 +252,58 @@ List the compute instances:
 +--------------+--------+-----------------+------------------------------------+-------+---------+--------+
 ```
 
-As the DNS server is created internally, it is a good idea to configure an
-external DNS server to use the public IPs to avoid using IPs to connect to the
-instances.
+#### DNS Verification
 
-In this case for the sake of simplicity, we are using the local /etc/hosts in
-the local workstation:
+Once all the instances are deployed, we need to verify that the DNS records are correctly configured before starting the Kubernetes cluster installation. Verify instances are resolved in the baremetal server, note that the records were stored in the /etc/hosts
 
 ```
-openstack server list -f value -c Networks -c Name | sed -e 's/kubernetes-the-hard-way=.*, //g' | awk ' { t = $1; $1 = $2; $2 = t; print; } ' | sudo tee -a /etc/hosts
+getent hosts 192.168.111.68
 ```
 
+Output
+
+```
+192.168.111.68  loadbalancer loadbalancer.k8s-net
+```
+Content of the baremetal server /etc/hosts should be similar to the following:
+
+```
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+192.168.111.68 loadbalancer loadbalancer.k8s-thw.local # KVIRT
+192.168.111.72 master00 master00.k8s-thw.local # KVIRT
+192.168.111.173 master01 master01.k8s-thw.local # KVIRT
+192.168.111.230 master02 master02.k8s-thw.local # KVIRT
+192.168.111.198 worker00 worker00.k8s-thw.local # KVIRT
+192.168.111.253 worker01 worker01.k8s-thw.local # KVIRT
+192.168.111.158 worker02 worker02.k8s-thw.local # KVIRT
+```
+
+Finally, verify that each instance is able to resolve another instance hostname. As shown below, master01 is able to resolved loadbalancer hostname:
+
+```
+kcli ssh master01 ping loadbalancer
+```
+
+Output expected:
+
+```
+Warning: Permanently added '192.168.111.173' (ECDSA) to the list of known hosts.
+PING loadbalancer.k8s-thw.local (192.168.111.68) 56(84) bytes of data.
+64 bytes from loadbalancer.k8s-thw.local (192.168.111.68): icmp_seq=1 ttl=64 time=0.370 ms
+64 bytes from loadbalancer.k8s-thw.local (192.168.111.68): icmp_seq=2 ttl=64 time=0.280 ms
+```
+
+## Reboot
+
+Finally, since all packages were updated during the bootstrap of the instance. we must reboot to run the latest ones
+
+```
+for node in loadbalancer master00 master01 master02 worker00 worker01 worker02
+do
+	kcli restart vm $node
+done
+```
 
 
 Next: [Provisioning a CA and Generating TLS Certificates](04-certificate-authority.md)
