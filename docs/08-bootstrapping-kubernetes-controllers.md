@@ -4,7 +4,7 @@ In this lab you will bootstrap the Kubernetes control plane across three compute
 
 ## Prerequisites
 
-Disable selinux (I know, I know):
+Disable selinux in all controller nodes (I know, I know):
 
 ```
 sudo sed -i -e 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
