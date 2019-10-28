@@ -1,28 +1,33 @@
 # Bootstrapping the etcd Cluster
 
-Kubernetes components are stateless and store cluster state in [etcd](https://github.com/coreos/etcd). In this lab you will bootstrap a three node etcd cluster and configure it for high availability and secure remote access.
+Kubernetes components are stateless and store cluster state in [etcd](https://github.com/coreos/etcd). etcd is a strongly consistent, distributed key-value store that provides a reliable way to store data that needs to be accessed by a distributed system or cluster of machines
+
+In this lab you will bootstrap a three node etcd cluster and configure it for high availability and secure remote access.
 
 ## Prerequisites
 
-Fix the controllers hostnames just in case:
+Remember that the fully qualified domain name (FQDN) of each member of the cluster must be resolvable by DNS: direct and reverse lookup. Therefore, check and confirm the controllers hostnames just in case: 
 
 ```
-[root@smc-master k8s-th]# for node in master00 master01 master02; do kcli ssh $node hostnamectl set-hostname ${node}.${DOMAIN}; kcli ssh $node "hostname -f"; done
-```
-
-The commands in this lab must be run on each controller instance: `controller-0`, `controller-1`, and `controller-2`. Login to each controller:
-
-```
-ssh -i ~/.ssh/k8s.pem centos@controller-0.${DOMAIN}
+DOMAIN=k8s-thw.local
+for node in master00 master01 master02; do
+	kcli ssh $node hostnamectl set-hostname ${node}.${DOMAIN}
+	kcli ssh $node "hostname -f"
+done
 ```
 
 ### Time synchronization
 
-```
-[root@smc-master ~]# yum install rhel-system-roles.noarch ansible
+etcd as any distributed system requires its components to be in sync. However, as a good practice we suggest to configure time synchronization along all the VMs in the infrastructure. To do so, we will leverage Ansible and system roles that comes as a package in CentOS.
 
+> [Ansible](https://github.com/ansible/ansible) is a configuration management tool that automates the configuration of multiple servers by the use of Ansible playbooks. It handles configuration management, application deployment, cloud provisioning, ad-hoc task execution, network automation, and multi-node orchestration. Ansible makes complex changes like zero-downtime rolling updates with load balancers easy
+
+First, install rhel-system-roles package on the baremetal server, which will be the Ansible control node:
+```
+yum install rhel-system-roles.noarch ansible
 ```
 
+Create a basic inventory called `inventory` which actually contains all the servers that are part of the infrastructure.
 
 ```
 [k8s-thw:children]
@@ -44,30 +49,38 @@ worker02
 loadbalancer
 
 ```
-> Playbook
+
+Create a playbook that consists on calling the system role called timesync. A description of this role and all possible options and configurations are installed with the rhel-system-role rpm and located at /usr/share/ansible/roles/linux-system-roles.timesync/README.md. In this case we are using chrony as the synchronization tool instead of ntp, however it can be easily change taking a look at the documentation.
 
 ```
  - hosts: all
    vars:
      timesync_ntp_provider: chrony
      timesync_ntp_servers:
-       - hostname: clock.corp.redhat.com
+       - hostname: pool.ntp.org
          iburst: yes
   roles:
     - rhel-system-roles.timesync
 
 ```
 
-> Run playbook
+> An Ansible playbook is an organized unit of scripts that defines work for a server configuration managed by the automation tool Ansible
+
+Then, run playbook:
 
 ```
-[root@smc-master ~]# ansible-playbook -i inventory timesync.yml
+ansible-playbook -i inventory timesync.yml
 ```
 
-> Verify
+Verify that the clocks are in sync. This task can be easily done with Ansible ad-hoc commands:
 
 ```
 # ansible -i inventory all -a "date" 
+```
+
+Output:
+
+```
 master02 | CHANGED | rc=0 >>
 Thu Oct 24 07:53:15 UTC 2019
 
@@ -90,11 +103,20 @@ loadbalancer | CHANGED | rc=0 >>
 Thu Oct 24 07:53:15 UTC 2019
 ```
 
-### Running commands in parallel with tmux
+### Running commands in parallel with tmux or terminator
 
 [tmux](https://github.com/tmux/tmux/wiki) can be used to run commands on multiple compute instances at the same time. See the [Running commands in parallel with tmux](01-prerequisites.md#running-commands-in-parallel-with-tmux) section in the Prerequisites lab.
 
+> There are other options, the most remarkable in my opinion is [terminator](https://terminator-gtk3.readthedocs.io/en/latest/) which I use a lot.
+
+
 ## Bootstrapping an etcd Cluster Member
+
+The commands to bootstrap etcd must be run **on each controller instance**: `master00`, `master01`, and `master02`. Login to each controller can be easily accomplished by:
+
+```
+kcli ssh centos@master00.${DOMAIN}
+```
 
 ### Download and Install the etcd Binaries
 
@@ -127,7 +149,7 @@ Extract and install the `etcd` server and the `etcdctl` command line utility:
 The instance internal IP address will be used to serve client requests and communicate with etcd cluster peers. Retrieve the internal IP address for the current compute instance:
 
 ```
-INTERNAL_IP=$(hostname --all-ip-addresses)
+INTERNAL_IP=$(hostname --ip-address)
 ```
 
 Each etcd member must have a unique name within an etcd cluster. Set the etcd name to match the hostname of the current compute instance:
@@ -171,16 +193,19 @@ WantedBy=multi-user.target
 EOF
 ```
 
+> NOTE that `initial-cluster` value is composed by all three masters or controllers since this is a distributed system.
+
+
 ### Start the etcd Server
 
 ```
 {
-sud
+  sudo systemctl daemon-reload
   sudo systemctl enable etcd --now
 }
 ```
 
-> Remember to run the above commands on each controller node: `controller-0`, `controller-1`, and `controller-2`.
+> Remember to run the above commands on each controller node: `master00`, `master01`, and `master02`.
 
 ## Verification
 
