@@ -1,20 +1,32 @@
 # Bootstrapping the Kubernetes Worker Nodes
 
-In this lab you will bootstrap three Kubernetes worker nodes. The following components will be installed on each node: [runc](https://github.com/opencontainers/runc), [container networking plugins](https://github.com/containernetworking/cni), [containerd](https://github.com/containerd/containerd) & [kubelet](https://kubernetes.io/docs/admin/kubelet).
+In this lab you will bootstrap three Kubernetes worker nodes. The following components will be installed on each node: [runc](https://github.com/opencontainers/runc), [container networking plugins](https://github.com/containernetworking/cni), [containerd](https://github.com/containerd/containerd), [kubelet](https://kubernetes.io/docs/admin/kubelet) and [kube-proxy](https://kubernetes.io/docs/concepts/cluster-administration/proxies)
 
 
 ## Prerequisites
 
-Verify workers hostnames just in case:
+Remember that the fully qualified domain name (FQDN) of each member of the cluster must be resolvable by DNS: direct and reverse lookup. Therefore, check and confirm the controllers hostnames just in case: 
 
 ```
-[root@smc-master ~]# for node in worker00 worker01 worker02; dok cli ssh $node "hostname -f"; done
+DOMAIN=k8s-thw.local
+for node in worker00 worker01 worker02; do
+	kcli ssh $node hostnamectl set-hostname ${node}.${DOMAIN}
+	kcli ssh $node "hostname -f"
+done
+```
+
+The commands in this lab must be run on each worker instance: `worker00`, `worker01`, and `worker02`. Login to each controller instance:
 
 ```
+kcli ssh worker00
+```
+
 
 ### Running commands in parallel with tmux
 
 [tmux](https://github.com/tmux/tmux/wiki) can be used to run commands on multiple compute instances at the same time. See the [Running commands in parallel with tmux](01-prerequisites.md#running-commands-in-parallel-with-tmux) section in the Prerequisites lab.
+
+> There are other options, the most remarkable in my opinion is [terminator](https://terminator-gtk3.readthedocs.io/en/latest/) which I use a lot.
 
 ## Provisioning a Kubernetes Worker Node
 
@@ -40,7 +52,7 @@ sudo sed -i -e 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
 
 ### Download and Install Worker Binaries
 
-Login back to the workers and perform the following commands:
+On each worker perform the following commands:
 
 ```
 wget \
@@ -77,8 +89,8 @@ Install the worker binaries:
   tar -xvf containerd-1.3.0.linux-amd64.tar.gz -C containerd
   sudo tar -xvf cni-plugins-linux-amd64-v0.8.2.tgz -C /opt/cni/bin/
   sudo mv runc.amd64 runc
-  chmod +x crictl kubectl kubelet runc
-  sudo mv crictl kubectl kubelet runc /usr/local/bin/
+  chmod +x crictl kubectl kube-proxy kubelet runc
+  sudo mv crictl kubectl kube-proxy kubelet runc /usr/local/bin/
   sudo mv containerd/bin/* /bin/
 }
 ```
@@ -87,9 +99,11 @@ Install the worker binaries:
 
 Retrieve the Pod CIDR range for the current compute instance:
 
-POD_CIDR=10.200.0.0/24
-POD_CIDR=10.200.1.0/24
-POD_CIDR=10.200.2.0/24
+```
+POD_CIDR=$(cat /home/centos/pod_cidr.txt)
+```
+
+> NOTE that when we deploy the [worker nodes](https://github.com/alosadagrande/kubernetes-the-hard-way-libvirt-kvm/blob/master/docs/03-compute-resources.md#kubernetes-workers) we already assigned a subnet of the pod network range to each worker. This information was stored in a filename called pod_cidr.txt into centos username home.
 
 Create the bridge network configuration file:
 
@@ -185,10 +199,8 @@ EOF
 Create the `kubelet-config.yaml` configuration file:
 
 ```
-POD_CIDR=10.200.0.0/24
-POD_CIDR=10.200.1.0/24
-POD_CIDR=10.200.2.0/24
-SHORTNAME=$(hostname -f)
+POD_CIDR=$(cat /home/centos/pod_cidr.txt)
+SHORTNAME=$(hostname -s)
 
 cat <<EOF | sudo tee /var/lib/kubelet/kubelet-config.yaml
 kind: KubeletConfiguration
@@ -242,9 +254,13 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 ```
+
 ## Configure the Kubernetes Proxy
 
+```
 sudo mv kube-proxy.kubeconfig /var/lib/kube-proxy/kubeconfig
+```
+
 Create the kube-proxy-config.yaml configuration file:
 
 ```
@@ -257,6 +273,7 @@ mode: "iptables"
 clusterCIDR: "10.200.0.0/16"
 EOF
 ```
+
 Create the kube-proxy.service systemd unit file:
 
 ```
@@ -285,27 +302,27 @@ EOF
 }
 ```
 
-> Remember to run the above commands on each worker node: `worker-0`, `worker-1`, and `worker-2`.
+> Remember to run the above commands on each worker node: `worker00`, `worker01`, and `worker02`.
+
 
 ## Verification
 
-> The compute instances created in this tutorial will not have permission to complete this section. Run the following commands from the same machine used to create the compute instances.
+> The compute instances created in this tutorial will not have permission to complete this section. Run the following commands from any of the master nodes.
 
 List the registered Kubernetes nodes:
 
 ```
 kcli ssh master00 \
-  "kubectl get nodes --kubeconfig admin.kubeconfig"
+  "kubectl get nodes --kubeconfig admin.kubeconfig -o wide"
 ```
 
 > output
 
 ```
-NAME                     STATUS   ROLES    AGE   VERSION
-worker00.k8s-thw.local   Ready    <none>   13m   v1.16.2
-worker01.k8s-thw.local   Ready    <none>   13m   v1.16.2
-worker02.k8s-thw.local   Ready    <none>   13m   v1.16.2
-
+NAME                     STATUS   ROLES    AGE     VERSION   INTERNAL-IP       EXTERNAL-IP   OS-IMAGE                KERNEL-VERSION               CONTAINER-RUNTIME
+worker00.k8s-thw.local   Ready    <none>   13m     v1.16.2   192.168.111.198   <none>        CentOS Linux 7 (Core)   3.10.0-1062.4.1.el7.x86_64   containerd://1.3.0
+worker01.k8s-thw.local   Ready    <none>   13m     v1.16.2   192.168.111.253   <none>        CentOS Linux 7 (Core)   3.10.0-1062.4.1.el7.x86_64   containerd://1.3.0
+worker02.k8s-thw.local   Ready    <none>   13m     v1.16.2   192.168.111.158   <none>        CentOS Linux 7 (Core)   3.10.0-1062.4.1.el7.x86_64   containerd://1.3.0
 ```
 
 Next: [Configuring kubectl for Remote Access](10-configuring-kubectl.md)
