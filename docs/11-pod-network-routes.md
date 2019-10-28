@@ -1,10 +1,6 @@
 # Provisioning Pod Network Routes
 
-ip route add $DOCKER_SUBNET via $NODE_IP
-
-
-
-Pods scheduled to a node receive an IP address from the node's Pod CIDR range. At this point pods can not communicate with other pods running on different nodes due to missing network [routes](https://cloud.google.com/compute/docs/vpc/routes).
+Pods scheduled to a node receive an IP address from the node's Pod CIDR range. At this point pods can not communicate with other pods running on different nodes due to missing network routes on virtual servers.
 
 In this lab you will create a route for each worker node that maps the node's Pod CIDR range to the node's internal IP address.
 
@@ -12,28 +8,45 @@ In this lab you will create a route for each worker node that maps the node's Po
 
 ## The Routing Table
 
-In this section you will gather the information required to create routes in the `kubernetes-the-hard-way` VPC network.
+In this section you will gather the information required to create routes in all the worker nodes.
 
 Print the internal IP address and Pod CIDR range for each worker instance:
 
 ```
-for instance in worker-0 worker-1 worker-2; do
-  gcloud compute instances describe ${instance} \
-    --format 'value[separator=" "](networkInterfaces[0].networkIP,metadata.items[0].value)'
+for node in worker00 worker01 worker02; do 
+	kcli ssh ${node} "hostname -f; hostname -i; cat /home/centos/pod_cidr.txt" | tr '\r\n' ' '
 done
 ```
 
 > output
 
 ```
-10.240.0.20 10.200.0.0/24
-10.240.0.21 10.200.1.0/24
-10.240.0.22 10.200.2.0/24
+worker00.k8s-thw.local 192.168.111.198 10.200.0.0/24
+worker01.k8s-thw.local 192.168.111.253 10.200.1.0/24
+worker02.k8s-thw.local 192.168.111.158 10.200.2.0/24
 ```
+
+With this information you can create the appropiate routes
 
 ## Routes
 
 Create network routes for each worker instance:
+
+- worker00
+
+```
+[root@worker00 ~]# ip route add 10.200.2.0/24 via 192.168.111.158
+[root@worker00 ~]# ip route add 10.200.1.0/24 via 192.168.111.253
+```
+
+- worker01
+
+```
+[root@worker01 ~]# ip route add 10.200.2.0/24 via 192.168.111.158
+[root@worker01 ~]# ip route add 10.200.0.0/24 via 192.168.111.198
+
+```
+- worker02
 
 ```
 [root@worker02 ~]# ip route add 10.200.1.0/24 via 192.168.111.253
@@ -41,21 +54,19 @@ Create network routes for each worker instance:
 
 ```
 
-List the routes in the `kubernetes-the-hard-way` VPC network:
-
-```
-gcloud compute routes list --filter "network: kubernetes-the-hard-way"
-```
+Verify that the routes were successfully added to the routing table of each worker node. Below is shown the route table of **worker01**:
 
 > output
 
 ```
-NAME                            NETWORK                  DEST_RANGE     NEXT_HOP                  PRIORITY
-default-route-081879136902de56  kubernetes-the-hard-way  10.240.0.0/24  kubernetes-the-hard-way   1000
-default-route-55199a5aa126d7aa  kubernetes-the-hard-way  0.0.0.0/0      default-internet-gateway  1000
-kubernetes-route-10-200-0-0-24  kubernetes-the-hard-way  10.200.0.0/24  10.240.0.20               1000
-kubernetes-route-10-200-1-0-24  kubernetes-the-hard-way  10.200.1.0/24  10.240.0.21               1000
-kubernetes-route-10-200-2-0-24  kubernetes-the-hard-way  10.200.2.0/24  10.240.0.22               1000
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+0.0.0.0         192.168.111.1   0.0.0.0         UG    0      0        0 eth0
+10.200.0.0      192.168.111.198 255.255.255.0   UG    0      0        0 eth0
+10.200.1.0      0.0.0.0         255.255.255.0   U     0      0        0 cnio0
+10.200.2.0      192.168.111.158 255.255.255.0   UG    0      0        0 eth0
+169.254.0.0     0.0.0.0         255.255.0.0     U     1002   0        0 eth0
+192.168.111.0   0.0.0.0         255.255.255.0   U     0      0        0 eth0
 ```
 
 Next: [Deploying the DNS Cluster Add-on](12-dns-addon.md)

@@ -160,7 +160,7 @@ kubectl exec -ti $POD_NAME -- nginx -v
 nginx version: nginx/1.17.5
 ```
 
-## Services
+## Expose the application: services and nodeport
 
 In this section you will verify the ability to expose applications using a [Service](https://kubernetes.io/docs/concepts/services-networking/service/).
 
