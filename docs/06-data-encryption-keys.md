@@ -32,10 +32,12 @@ resources:
 EOF
 ```
 
-Copy the `encryption-config.yaml` encryption config file to each controller instance:
+Copy the `encryption-config.yaml` encryption config file to **each controller instance**:
 
 ```
-# for node in master00 master01 master02; do kcli scp encryption-config.yaml $node:~; done
+# for node in master00 master01 master02; do 
+	kcli scp encryption-config.yaml $node:~
+  done
 
 ```
 
