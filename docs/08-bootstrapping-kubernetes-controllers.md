@@ -1,8 +1,14 @@
 # Bootstrapping the Kubernetes Control Plane
 
-In this lab you will bootstrap the Kubernetes control plane across three compute instances and configure it for high availability. You will also create an external load balancer that exposes the Kubernetes API Servers to remote clients. The following components will be installed on each node: Kubernetes API Server, Scheduler, and Controller Manager.
+In this lab you will bootstrap the Kubernetes control plane across three compute instances and configure it for high availability. You will also use the [already provisioned load balancer](https://github.com/alosadagrande/kubernetes-the-hard-way-libvirt-kvm/blob/master/docs/03-compute-resources.md#load-balancer-service) that exposes the Kubernetes API Servers to remote clients. The following components will be installed on each master or controller: `Kubernetes API Server`, `Scheduler`, and `Controller Manager`.
 
 ## Prerequisites
+
+Disable selinux (I know, I know):
+
+```
+sudo sed -i -e 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+```
 
 The commands in this lab must be run on each controller instance: `master00`, `master01`, and `master02`. Login to each controller instance:
 
@@ -13,6 +19,9 @@ kcli ssh master00
 ### Running commands in parallel with tmux
 
 [tmux](https://github.com/tmux/tmux/wiki) can be used to run commands on multiple compute instances at the same time. See the [Running commands in parallel with tmux](01-prerequisites.md#running-commands-in-parallel-with-tmux) section in the Prerequisites lab.
+
+> There are other options, the most remarkable in my opinion is [terminator](https://terminator-gtk3.readthedocs.io/en/latest/) which I use a lot.
+
 
 ## Provision the Kubernetes Control Plane
 
@@ -58,7 +67,7 @@ Install the Kubernetes binaries:
 The instance internal IP address will be used to advertise the API Server to members of the cluster. Retrieve the internal IP address for the current compute instance:
 
 ```
-INTERNAL_IP=$(hostname --all-ip-addresses)
+INTERNAL_IP=$(hostname --ip-address)
 ```
 
 Create the `kube-apiserver.service` systemd unit file:
@@ -107,6 +116,10 @@ WantedBy=multi-user.target
 EOF
 ```
 
+> NOTE that `etcd-servers` setting contains all the URLs where the etcd databases are listening. Take a look, if needed, to the etcd installation and configuration we already did [previously](https://github.com/alosadagrande/kubernetes-the-hard-way-libvirt-kvm/blob/master/docs/07-bootstrapping-etcd.md#bootstrapping-an-etcd-cluster-member)
+
+> NOTE that `service-cluster-ip-range` setting refers to the network range assigned to the service network where service Kubernetes objects are listening. Remember that this network is an internal Kubernetes network.
+
 ### Configure the Kubernetes Controller Manager
 
 Move the `kube-controller-manager` kubeconfig into place:
@@ -145,6 +158,8 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 ```
+
+> NOTE that `cluster-cidr` is the network range assigned to all the nodes in the cluster where pods run. Actually, each node will be assigned a part of this network. Remember as well that this network is an internal Kubernetes network.
 
 ### Configure the Kubernetes Scheduler
 
@@ -198,43 +213,6 @@ EOF
 
 > Allow up to 10 seconds for the Kubernetes API Server to fully initialize.
 
-### Verification
-
-https://github.com/kubernetes/kubernetes/issues/83024 -> comment issue
-
-```
-[centos@master01 ~]$ kubectl get componentstatuses --kubeconfig admin.kubeconfig -o yaml | egrep "kind|name|message"
-
-```
-
-```
-  kind: ComponentStatus
-    name: controller-manager
-  - message: ok
-    status: "True"
-  kind: ComponentStatus
-    name: scheduler
-  - message: '{"health":"true"}'
-    status: "True"
-  kind: ComponentStatus
-    name: etcd-2
-  - message: '{"health":"true"}'
-    status: "True"
-  kind: ComponentStatus
-    name: etcd-1
-  - message: '{"health":"true"}'
-    status: "True"
-  kind: ComponentStatus
-    name: etcd-0
-
-```
-
-Disable selinux (I know, I know):
-
-```
-sudo sed -i -e 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
-```
-
 
 ## RBAC for Kubelet Authorization
 
@@ -242,10 +220,10 @@ In this section you will configure RBAC permissions to allow the Kubernetes API 
 
 > This tutorial sets the Kubelet `--authorization-mode` flag to `Webhook`. Webhook mode uses the [SubjectAccessReview](https://kubernetes.io/docs/admin/authorization/#checking-api-access) API to determine authorization.
 
-The commands in this section will effect the entire cluster and only need to be run once from one of the controller nodes.
+The commands in this section will effect the entire cluster and only need to be run once from one of the controller nodes. In this case we are connecting to master00:
 
 ```
-ssh -i ~/.ssh/k8s.pem centos@controller-0.${DOMAIN}
+kcli ssh master00
 ```
 
 Create the `system:kube-apiserver-to-kubelet` [ClusterRole](https://kubernetes.io/docs/admin/authorization/rbac/#role-and-clusterrole) with permissions to access the Kubelet API and perform most common tasks associated with managing pods:
@@ -296,22 +274,51 @@ subjects:
 EOF
 ```
 
-## Provision a Network Load Balancer
 
+## Verification
 
+Finally, verify that the services are running successfully and they are in a healthy state.
 
-### Verification
+> NOTE that kubectl get componentstatus is being deprecated. Also due to the following [bug](https://github.com/kubernetes/kubernetes/issues/83024) results of the command are unable to be formated as a table.
+
+```
+kubectl get componentstatuses --kubeconfig admin.kubeconfig -o yaml | egrep "kind|name|message"
+```
+
+```
+  kind: ComponentStatus
+    name: controller-manager
+  - message: ok
+    status: "True"
+  kind: ComponentStatus
+    name: scheduler
+  - message: '{"health":"true"}'
+    status: "True"
+  kind: ComponentStatus
+    name: etcd-2
+  - message: '{"health":"true"}'
+    status: "True"
+  kind: ComponentStatus
+    name: etcd-1
+  - message: '{"health":"true"}'
+    status: "True"
+  kind: ComponentStatus
+    name: etcd-0
+
+```
+
+Verify that the load balancer is correctly configured and balances the requests between the three masters or controllers:
 
 Retrieve the `loadbalancer` static IP address:
 
 ```
-KUBERNETES_PUBLIC_ADDRESS=192.168.111.68
+KUBERNETES_PUBLIC_ADDRESS=$(kcli ssh loadbalancer "hostname --ip-address")
 ```
 
 Make a HTTPS request for the Kubernetes version info:
 
 ```
-curl --cacert /var/lib/kubernetes/ca.pem https://${KUBERNETES_PUBLIC_ADDRESS}:6443/version
+curl --cacert ca.pem https://${KUBERNETES_PUBLIC_ADDRESS}:6443/version
 ```
 
 > output
@@ -329,5 +336,6 @@ curl --cacert /var/lib/kubernetes/ca.pem https://${KUBERNETES_PUBLIC_ADDRESS}:64
   "platform": "linux/amd64"
 }
 ```
+
 
 Next: [Bootstrapping the Kubernetes Worker Nodes](09-bootstrapping-kubernetes-workers.md)
