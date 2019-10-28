@@ -8,15 +8,13 @@ In this section you will generate kubeconfig files for the `controller manager`,
 
 ### Kubernetes Public IP Address
 
-Each kubeconfig requires a Kubernetes API Server to connect to. To support high availability the IP address assigned to the external load balancer fronting the Kubernetes API Servers will be used.
-
-Retrieve the `kubernetes-the-hard-way` static IP address:
+Each kubeconfig requires a Kubernetes API Server to connect to. To support high availability the IP address assigned to the load balancer fronting the Kubernetes API Servers will be used. Retrieve the load balancer static IP address:
 
 ```
 KUBERNETES_PUBLIC_ADDRESS=$(kcli info vm loadbalancer | grep "ip:" | awk '{print$2}' |  tr -d '[:space:]')
 ```
 
-> KUBERNETES_PUBLIC_ADDRESS is the loadbalancer IP address. This be the entry point for all the API requests coming from all the instances inside the Kubernetes cluster and from the baremetal itself.
+> KUBERNETES_PUBLIC_ADDRESS is the loadbalancer IP address. This is the entry point for all the API requests coming from all the instances inside the Kubernetes cluster and from the baremetal itself as well.
 
 ### The kubelet Kubernetes Configuration File
 
@@ -194,7 +192,7 @@ admin.kubeconfig
 
 ## Distribute the Kubernetes Configuration Files
 
-Copy the appropriate `kubelet` and `kube-proxy` kubeconfig file to each worker instance:
+Copy the appropriate `kubelet` and `kube-proxy` kubeconfig file to **each worker instance**:
 
 ```
 for node in worker00 worker01 worker02
@@ -205,7 +203,7 @@ done
 
 ```
 
-Copy the appropriate `kube-controller-manager` and `kube-scheduler` kubeconfig files to each controller instance:
+Copy the appropriate `kube-controller-manager` and `kube-scheduler` kubeconfig files to **each controller instance**:
 
 ```
 for node in master00 master01 master02; do
