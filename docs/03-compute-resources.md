@@ -12,7 +12,7 @@ The Kubernetes [networking model](https://kubernetes.io/docs/concepts/cluster-ad
 
 The VM network is a network where all the VMs are executed. Actually this is a virtual network configured as type 'nated', e.g. all VMs will be placed in the same network address range, they will have access to the outside world using the baremetal server virtual bridge as a default gateway (NAT). However, take into account that any remote server won't be able to reach any VM since they are behind the baremetal server.
 
-> The baremetal server, as it is part of the virtual network (gateway), can connect to any of the VMs. So, as we will se further in this tutorial, anytime you need to execute commands on any of the VMs, you need to connect first to the baremetal server.
+> Since the baremetal server hosts the virtual infrastructure it is able to connect to any of the VMs. So, as we will see further in this tutorial, anytime you need to execute commands on any of the VMs, you need to connect first to the baremetal server.
 
 By default as commented in the previous sections, there is a default virtual network named as default configured:
 ```
@@ -42,7 +42,12 @@ Output expected:
 
 ```
 Network k8s-net deployed
-[root@smc-master k8s-th]# kcli list network
+```
+
+Check the list of virtual networks available:
+
+```
+# kcli list network
 Listing Networks...
 +---------+--------+------------------+------+---------------+------+
 | Network |  Type  |       Cidr       | Dhcp |     Domain    | Mode |
@@ -65,7 +70,7 @@ kcli download image centos7 --pool default
 
 ## DNS
 
-It is required to have a proper DNS configuration, that must resolve direct and reverse queries of all the VMs. Unlike other similar tutorials, kcli makes really easy to configure a proper DNS resolution of each VM. Everytime you create a new instance it is possible to create a DNS record into libvirt dnsmasq. It also can even create a /etc/hosts record in the host that executes the instance creation. This information can be found in the kcli official documentation, section [ip, dns and host reservations](https://kcli.readthedocs.io/en/latest/#ip-dns-and-host-reservations)
+It is required to have a proper DNS configuration that must resolve direct and reverse queries of all the VMs. Unlike other similar tutorials, kcli makes really easy to configure a proper DNS resolution of each VM. Everytime you create a new instance it is possible to create a DNS record into **libvirt dnsmasq** running on the baremetal host. It also can even create a /etc/hosts record in the host that executes the instance creation. This information can be found in the kcli official documentation, section [ip, dns and host reservations](https://kcli.readthedocs.io/en/latest/#ip-dns-and-host-reservations)
 
 > There is no need to maintain a DNS server since DNS record can be automatically created when launching a new instance
 
@@ -93,7 +98,10 @@ Create three compute instances which will host the Kubernetes **control plane**.
 - Execute "yum update -y" once the server is up and running. This command is injected into the cloudinit, so all instances are up to date since the very beginning.
 
 ```
-# for node in master00 master01 master02; do kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update"] -P reservedns=yes -P reserveip=yes -P reservehost=yes ${node}; done
+# for node in master00 master01 master02; do
+ 	kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
+        -P cmds=["yum -y update"] -P reservedns=yes -P reserveip=yes -P reservehost=yes ${node}
+done
 ```
 
 Verify your masters are up and running
@@ -114,12 +122,14 @@ Verify your masters are up and running
 In order to have a proper Kubernetes high available environment, a Load balancer is required to distribute the API load. In this case we are going to create an specific instance to run a HAProxy loadbalancer service. First, create an instance to host the load balancer service. Below we are about to create a new instance with:
 
 ```
-# kcli create vm -i centos7 -P disks=[20] -P nets=[k8s-net] -P memory=2048 -P numcpus=2 -P cmds=["yum -y update"] -P reserverdns=yes -P reserverip=yes -P reserverhost=yes loadbalancer
+# kcli create vm -i centos7 -P disks=[20] -P nets=[k8s-net] -P memory=2048 -P numcpus=2 \
+  -P cmds=["yum -y update"] -P reserverdns=yes -P reserverip=yes -P reserverhost=yes loadbalancer
 ```
+
 Check your **loadbalancer** instance is up and running
 
 ```
-[root@smc-master k8s-th]# kcli list vm
+kcli list vm
 +--------------+--------+-----------------+------------------------------------+-------+---------+--------+
 |     Name     | Status |       Ips       |               Source               |  Plan | Profile | Report |
 +--------------+--------+-----------------+------------------------------------+-------+---------+--------+
@@ -223,9 +233,13 @@ Create three compute instances which will host the Kubernetes worker nodes:
 > Each worker instance requires a pod subnet allocation from the Kubernetes cluster CIDR range. The pod subnet allocation will be used to configure container networking in a later exercise. The `/home/centos/pod_cidr.txt` file contains the subnet assigned to each worker.
 
 ```
-# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update",'echo "10.200.0.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker00
-# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update",'echo "10.200.1.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker01
-# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 -P cmds=["yum -y update",'echo "10.200.2.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker02
+# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
+ -P cmds=["yum -y update",'echo "10.200.0.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker00
+
+# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
+  -P cmds=["yum -y update",'echo "10.200.1.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker01
+# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
+-P cmds=["yum -y update",'echo "10.200.2.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker02
 ```
 
 ### Verification
@@ -252,7 +266,7 @@ List the compute instances:
 +--------------+--------+-----------------+------------------------------------+-------+---------+--------+
 ```
 
-#### DNS Verification
+## DNS Verification
 
 Once all the instances are deployed, we need to verify that the DNS records are correctly configured before starting the Kubernetes cluster installation. Verify instances are resolved in the baremetal server, note that the records were stored in the /etc/hosts
 

@@ -109,7 +109,7 @@ admin.pem
 
 Kubernetes uses a [special-purpose authorization mode](https://kubernetes.io/docs/admin/authorization/node/) called Node Authorizer, that specifically authorizes API requests made by [Kubelets](https://kubernetes.io/docs/concepts/overview/components/#kubelet). In order to be authorized by the Node Authorizer, Kubelets must use a credential that identifies them as being in the `system:nodes` group, with a username of `system:node:<nodeName>`. In this section you will create a certificate for each Kubernetes worker node that meets the Node Authorizer requirements.
 
-> The <nodeName> will use the FQDN.
+> The nodeName will use the FQDN.
 
 Generate a certificate and private key for each Kubernetes worker node:
 
@@ -293,7 +293,7 @@ The `kubernetes-the-hard-way` static IP address will be included in the list of 
 
 Generate the Kubernetes API Server certificate and private key:
 
-> NOTE: KUBERNETES_BAREMETAL_ADDRESS is assigned to the IP address of the baremetal server. This IP will be used further in the tutorial to allow access to the API remotely.
+> Note that KUBERNETES_BAREMETAL_ADDRESS is assigned to the IP address of the baremetal server. This IP will be used further in the tutorial to allow access to the API remotely.
 
 ```
 {

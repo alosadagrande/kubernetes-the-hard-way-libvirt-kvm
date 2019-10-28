@@ -49,7 +49,7 @@ systemctl enable libvirtd --now
 
 In order to deploy all the virtual devices needed to run the infrastructure we can make use of the virsh command line. The virsh program is the main interface for managing virsh guest domains. The program can be used to create, pause, and shutdown domains. It can also be used to list current domains.
 
-However, I find much easier to use [kcli])(https://kcli.readthedocs.io/en/master/) to deploy my virtual infrastructure. *Kcli* is a tool meant to interact with existing virtualization providers (libvirt, kubevirt, ovirt, openstack, gcp and aws, vsphere) and to easily deploy and customize vms from cloud images. You can also interact with those vms (list, info, ssh, start, stop, delete, console, serialconsole, add/delete disk, add/delete nic,…). Futhermore, you can deploy vms using predefined profiles, several at once using plan files or entire products for which plans were already created for you.
+However, I find much easier to use [kcli](https://kcli.readthedocs.io/en/master/) to deploy my virtual infrastructure.  **Kcli** is a tool meant to interact with existing virtualization providers (libvirt, kubevirt, ovirt, openstack, gcp and aws, vsphere) and to easily deploy and customize vms from cloud images. You can also interact with those vms (list, info, ssh, start, stop, delete, console, serialconsole, add/delete disk, add/delete nic,…). Futhermore, you can deploy vms using predefined profiles, several at once using plan files or entire products for which plans were already created for you.
 
 
 ### Install kcli

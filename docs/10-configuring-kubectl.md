@@ -1,9 +1,9 @@
 # Configuring kubectl for Remote Access 
 
-In this lab you will generate a kubeconfig file for the `kubectl` command line utility based on the `admin` user credentials. Also, in this lab we are going to show how to provide remote access to the Kubernetes cluster:
+In this lab you will generate a kubeconfig file for the `kubectl` command line utility based on the `admin` user credentials. Also, in this lab we are going to show how to provide remote access to the Kubernetes cluster in different scenarios:
 
-- First, configure access to the Kubernetes API from the baremetal server. Remember that it is able to reach the virtual network and any virtual resource since it hosts them.
-- Second, in case there is no way to provide ssh access to the baremetal server to your users, it is shown how to configure the baremetal server to forward external Kuberentes API requests to the internal load balancer VM. Note that there is not direct connectivity between external resources to the baremetal server 
+- Configure access to the Kubernetes API from the baremetal server. Remember that it is able to reach the virtual network and any virtual resource since it hosts them.
+- In case there is no way to provide ssh access to the baremetal server to your users, it is shown how to configure the baremetal server to forward external Kuberentes API requests to the internal load balancer VM. Note that there is not direct connectivity between external resources to the baremetal server 
 
 > Run the commands in this lab from the same directory used to generate the admin client certificates.
 
@@ -42,7 +42,7 @@ Generate a kubeconfig file suitable for authenticating as the `admin` user:
 
 Check the health of the remote Kubernetes cluster. Remember that all commands are executed from the baremetal server.
 
-Check the status of the components: https://github.com/kubernetes/enhancements/issues/553
+> See [here](08-bootstrapping-kubernetes-controllers.md#verification) issues with componentstatuses output in table format.
 
 ```
 kubectl get componentstatuses -o yaml | egrep "name:|kind:|message:"
@@ -164,7 +164,6 @@ NAME                     STATUS   ROLES    AGE     VERSION
 worker00.k8s-thw.local   Ready    <none>   4h14m   v1.16.2
 worker01.k8s-thw.local   Ready    <none>   4h14m   v1.16.2
 worker02.k8s-thw.local   Ready    <none>   4h14m   v1.16.2
-
 ```
 
 
