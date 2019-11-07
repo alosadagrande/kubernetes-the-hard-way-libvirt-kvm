@@ -81,7 +81,7 @@ worker02.k8s-thw.local   Ready    <none>   3h24m   v1.16.2
 
 ```
 
-# Remote Acces from outside the baremetal server
+# Remote Access from outside the baremetal server
 
 In this case we want to give access to someone who is working with his laptop or server and wants to get access to our Kubernetes cluster. Note that this server or laptop must be able to reach the baremetal server where all the VMs are running.
 
