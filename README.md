@@ -21,18 +21,17 @@ from learning!
 
 > **Note:** This tutorial has been forked from [Kubernetes The Hard Way](https://github.com/kelseyhightower/kubernetes-the-hard-way) wrote by Kelsey Hightower and it is based also on [Kubernetes The Hard Way (Openstack Edition)](https://github.com/e-minguez/kubernetes-the-hard-way-openstack) by Eduardo Mínguez. Special thanks to both.
 
-The main difference is that instead of running our cluster on top of an IaaS solution as Google Cloud or OpenStack, we aim to deploy a Kubernetes cluster on a baremetal server. We will leverage the virtualization capabilities that comes with GNU/Linux (libvirt/KVM/QEMU) to easily provide a similar *virtual infrastructure*. Note that in this case, we could use any spare baremetal server or laptop (with enough resources) running a GNU/Linux distribution.
+The main difference is that instead of running our cluster on top of an IaaS solution as Google Cloud or OpenStack, we aim to deploy a Kubernetes cluster on a baremetal server. We will leverage the virtualization capabilities that come with GNU/Linux (libvirt/KVM/QEMU) to easily provide a similar *virtual infrastructure*. Note that we can use any spare baremetal server or laptop (with enough resources) running a GNU/Linux distribution.
 
-Some other differences in this installation against the original one:
+Some other differences in this installation comparing to the original one:
 
 * CentOS 7/8 instead Ubuntu as the operating system of the instances.
 * Dedicated instance for load balancing (with HAProxy).
 
-
 ## Target Audience
 
 The target audience for this tutorial is someone planning to support a
-production Kubernetes cluster and wants to understand how everything fits
+production Kubernetes cluster and who wants to understand how everything fits
 together.
 
 ## Cluster Details
@@ -49,8 +48,8 @@ authentication.
 
 ## Labs
 
-This tutorial assumes you have access to an OpenStack environment. While OSP is
-used for basic infrastructure requirements the lessons learned in this tutorial
+This tutorial assumes you have access to a Baremetal Server. While KVM is
+used for basic infrastructure requirements, the lessons learned in this tutorial
 can be applied to other platforms.
 
 * [Prerequisites](docs/01-prerequisites.md)

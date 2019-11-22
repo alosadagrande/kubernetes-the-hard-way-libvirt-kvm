@@ -2,7 +2,7 @@
 
 ## Libvirt Platform
 
-This tutorial leverages libvirt and KVM/QEMU to streamline provisioning of the compute infrastructure required to bootstrap a Kubernetes cluster from the ground up. First step is to find a baremetal server with enough resources to run a Kubernetes cluster on virtual machines. In my case I am lucky to borrow a Dell Blade with the following resources
+This tutorial leverages libvirt and KVM/QEMU to streamline provisioning of the compute infrastructure required to bootstrap a Kubernetes cluster from the ground up. First step is to find a baremetal server with enough resources to run a Kubernetes cluster on virtual machines. In my case I am lucky to borrow a Dell Blade with the following resources:
 
 ```
 Host: smc-master
@@ -23,17 +23,15 @@ During this tutorial I am about to configure a high availability Kubernetes clus
 | worker02      | controller | CentOS 7 |   4   |  16 GB | 50 GB |
 | loadbalancer  | balancer   | CentOS 7 |   2   |  2 GB  | 20 GB |
 
-- Ansible (optional)
-
 In case you are not as lucky as me, you can still follow this tutorial with the resources you have. Basically you can decrease the resources assigned to each VM or run less workers, for instance 1 or 2 instead of 3. I suggest to run 3 masters since this is the minimal number of masters to deploy a high available Kubernetes cluster since etcd needs quorum.
 
-At this point, we can start configuring the baremetal server. Note that these steps are required to be executed by an administrator of the baremetal server (smc-master). First, install all the virtualization packages needed to create virtual machines (VMs), virtual networks, virtual disks and all virtual devices needed to provision the cluster.
+At this point, we can start configuring the baremetal server. Note that these steps are required to be executed as root on the baremetal server (smc-master). First, install all the virtualization packages needed to create virtual machines (VMs), virtual networks, virtual disks and all virtual devices needed to provision the cluster.
 
 ```
 yum groupinstall "Virtualization Host"
 ```
 
-Also I suggest tp install the libvirtd client in the baremetal server itself in case we need to troubleshoot locally any issue that can arise.
+Also I suggest to install the libvirtd client in the baremetal server itself in case we need to troubleshoot locally any issue that can arise.
 
 ```
 yum install libvirt-client
@@ -47,29 +45,29 @@ systemctl enable libvirtd --now
 
 ## Libvirt CLI
 
-In order to deploy all the virtual devices needed to run the infrastructure we can make use of the virsh command line. The virsh program is the main interface for managing virsh guest domains. The program can be used to create, pause, and shutdown domains. It can also be used to list current domains.
+In order to deploy all the virtual devices needed to run the infrastructure we can make use of libvirt standard tools like virsh. The virsh program is the main interface for managing libvirt guest domains. It can be used to create, pause, shutdown or list current domains.
 
-However, I find much easier to use [kcli](https://kcli.readthedocs.io/en/master/) to deploy my virtual infrastructure.  **Kcli** is a tool meant to interact with existing virtualization providers (libvirt, kubevirt, ovirt, openstack, gcp and aws, vsphere) and to easily deploy and customize vms from cloud images. You can also interact with those vms (list, info, ssh, start, stop, delete, console, serialconsole, add/delete disk, add/delete nic,…). Futhermore, you can deploy vms using predefined profiles, several at once using plan files or entire products for which plans were already created for you.
+However, I find much easier to use [kcli](https://kcli.readthedocs.io/en/master/) to deploy my virtual infrastructure.  In author's own word, "**Kcli** is a tool meant to interact with existing virtualization providers (libvirt, kubevirt, ovirt, openstack, gcp and aws, vsphere) and to easily deploy and customize vms from cloud images."
 
 
 ### Install kcli
 
 Follow the kcli [documentation](https://kcli.readthedocs.io/en/master/#installation) to install and configure all the binaries needed to manage the libvirt daemon of the baremetal server
 
-If using CentOS, which is our case
+We will run it as a container by installing podman and launching the install script which pulls the image and sets the proper shell aliases 
 
 ```
-yum install epel-release
-yum install pip3 python3 libvirt-python libvirt-devel gcc
-pip3 install kcli
+yum install podman
+curl https://raw.githubusercontent.com/karmab/kcli/master/install.sh | sh
+bash
 ```
 
-> It is possible to install kcli on your laptop and configure it to manage the remote baremetal server or even several libvirt hosts remotely. Take a look at the [official documentation](https://kcli.readthedocs.io/en/latest/#configuration). In this tutorial we assume installing kcli on the baremetal server in order to manage the local libvirt.
+> It is possible to install kcli on your laptop and configure it to manage the remote baremetal server or even other libvirt/ovirt/vsphere/... hosts remotely. Take a look at the [official documentation](https://kcli.readthedocs.io/en/latest/#configuration). In this tutorial we assume installing kcli on the baremetal server in order to manage the local libvirt.
 
 
 ### Configure kcli to manage the local libvirt
 
-Once you have kcli configured in your baremetal server you need to create a ssh key pair with an empty passphrase to interact with the libvirt daemon. Also this public ssh key will be automatically injected into the virtual machines you are about to create, allowing you to ssh from the baremetal server automatically once the vm is up and running.
+Once kcli is configured in your baremetal server, we will create a ssh key pair to interact with the libvirt daemon. The default public ssh key will be automatically injected into the virtual machines we will create, allowing us to ssh from the baremetal server automatically once the vm is up and running.
 
 ```
 # ssh-keygen -t rsa -b 2048
@@ -95,23 +93,7 @@ The key's randomart image is:
 +----[SHA256]-----+
 ```
 
-Establish the connection between the kcli and the local libvirt.
-
-```
-kcli create host kvm -H 127.0.0.1
-```
-
-Verify
-
-```
-+-----------+------+---------+---------+
-| Client    | Type | Enabled | Current |
-+-----------+------+---------+---------+
-| localhost | kvm  |   True  |    X    |
-+-----------+------+---------+---------+
-```
-
-Next step is create a pool where the cloud images are donwloaded and where the vms are going to be placed in the baremetal server. In this case, we use the defacto libvirt image path:
+Next step is to create a libvirt pool where the cloud images are donwloaded and where the vms are going to be placed in the baremetal server:
 
 ```
 kcli create pool -p /var/lib/libvirt/images/ default

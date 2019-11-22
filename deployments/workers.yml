@@ -1,0 +1,23 @@
+parameters:
+ workers: 3
+ numcpus: 4
+ memory: 16384
+ disks:
+ - 50
+ nets:
+ - k8s-net
+ cmds:
+ - yum -y update
+ - echo "10.200.0.0/24" > /home/centos/pod_cidr.txt
+
+{% for num in range(0, worker) %}
+worker0{{ num }}:
+ image:  {{ image }}
+ disks: {{ disks }}
+ nets: {{ nets }}
+ reservedns: true
+ reservehost: true
+ numcpus:  4
+ memory: {{ memory }}
+ cmds: {{ cmds }}
+{% endfor %}

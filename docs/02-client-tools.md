@@ -79,5 +79,4 @@ Client Version: version.Info{Major:"1", Minor:"16", GitVersion:"v1.16.2", GitCom
 
 ```
 
-
 Next: [Provisioning Compute Resources](03-compute-resources.md)
