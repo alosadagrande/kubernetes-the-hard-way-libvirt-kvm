@@ -390,8 +390,8 @@ service-account.pem
 Copy the appropriate certificates and private keys to each worker instance:
 
 ```
-# for node in worker00 worker01 worker02; dp
-  	for key in ${node}-key.pem ${node}.pem kube-proxy-key.pem kube-proxy.pem do 
+# for node in worker00 worker01 worker02; do
+  	for key in ${node}-key.pem ${node}.pem kube-proxy-key.pem kube-proxy.pem ; do 
 		kcli scp ${key} ${node}:~ 
 	done
   done
