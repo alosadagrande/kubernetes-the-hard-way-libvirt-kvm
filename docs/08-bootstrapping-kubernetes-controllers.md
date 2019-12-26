@@ -68,6 +68,7 @@ The instance internal IP address will be used to advertise the API Server to mem
 
 ```
 INTERNAL_IP=$(hostname --ip-address)
+for node in master00 master01 master02 ; do export IP_${node}=$(dig +short ${node}) ;done
 ```
 
 Create the `kube-apiserver.service` systemd unit file:
@@ -94,7 +95,7 @@ ExecStart=/usr/local/bin/kube-apiserver \\
   --etcd-cafile=/var/lib/kubernetes/ca.pem \\
   --etcd-certfile=/var/lib/kubernetes/kubernetes.pem \\
   --etcd-keyfile=/var/lib/kubernetes/kubernetes-key.pem \\
-  --etcd-servers=https://192.168.111.72:2379,https://192.168.111.173:2379,https://192.168.111.230:2379 \\
+  --etcd-servers=https://${IP_master00}:2379,https://${IP_master01}:2379,https://${IP_master02}:2379 \\
   --event-ttl=1h \\
   --encryption-provider-config=/var/lib/kubernetes/encryption-config.yaml \\
   --kubelet-certificate-authority=/var/lib/kubernetes/ca.pem \\
