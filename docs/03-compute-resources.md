@@ -157,7 +157,7 @@ Install and configure HAProxy:
 # for node in master00 master01 master02 ; do export IP_${node}="$(dig +short ${node})"; done
  
 
-# tee /etc/haproxy/haproxy.cfg << EOF
+# sudo tee /etc/haproxy/haproxy.cfg << EOF
 global
     log         127.0.0.1 local2
     chroot      /var/lib/haproxy
