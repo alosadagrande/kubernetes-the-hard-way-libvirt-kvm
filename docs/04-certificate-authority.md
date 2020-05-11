@@ -300,6 +300,8 @@ Generate the Kubernetes API Server certificate and private key:
 
 KUBERNETES_BAREMETAL_ADDRESS=10.19.138.41
 KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
+for node in loadbalancer master00 master01 master02 ; do export IP_${node}=$(getent hosts ${node} | cut -d" " -f1) ;done
+
 
 cat > kubernetes-csr.json <<EOF
 {
@@ -324,7 +326,7 @@ cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
   -config=ca-config.json \
-  -hostname=loadbalancer.${DOMAIN},10.32.0.1,192.168.111.68,192.168.111.72,192.168.111.173,192.168.111.230,${KUBERNETES_BAREMETAL_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -hostname=loadbalancer.${DOMAIN},10.32.0.1,${IP_loadbalancer},${IP_master00},${IP_master01},${IP_master02},${KUBERNETES_BAREMETAL_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
   -profile=kubernetes \
   kubernetes-csr.json | cfssljson -bare kubernetes
 
@@ -390,8 +392,8 @@ service-account.pem
 Copy the appropriate certificates and private keys to each worker instance:
 
 ```
-# for node in worker00 worker01 worker02; dp
-  	for key in ${node}-key.pem ${node}.pem kube-proxy-key.pem kube-proxy.pem do 
+# for node in worker00 worker01 worker02; do
+  	for key in ${node}-key.pem ${node}.pem kube-proxy-key.pem kube-proxy.pem ca.pem ; do 
 		kcli scp ${key} ${node}:~ 
 	done
   done

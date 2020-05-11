@@ -123,7 +123,7 @@ kcli ssh centos@master00.${DOMAIN}
 Download the official etcd release binaries from the [coreos/etcd](https://github.com/coreos/etcd) GitHub project:
 
 ```
-sudo yum install -y wget
+sudo yum install -y wget bind-utils
 wget -q --timestamping \
   "https://github.com/etcd-io/etcd/releases/download/v3.4.0/etcd-v3.4.0-linux-amd64.tar.gz"
 ```
@@ -150,6 +150,7 @@ The instance internal IP address will be used to serve client requests and commu
 
 ```
 INTERNAL_IP=$(hostname --ip-address)
+for node in master00 master01 master02 ; do export IP_${node}=$(dig +short ${node}) ;done
 ```
 
 Each etcd member must have a unique name within an etcd cluster. Set the etcd name to match the hostname of the current compute instance:
@@ -182,7 +183,7 @@ ExecStart=/usr/local/bin/etcd \\
   --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
   --advertise-client-urls https://${INTERNAL_IP}:2379 \\
   --initial-cluster-token etcd-cluster-0 \\
-  --initial-cluster master00=https://192.168.111.72:2380,master01=https://192.168.111.173:2380,master02=https://192.168.111.230:2380 \\
+  --initial-cluster master00=https://${IP_master00}:2380,master01=https://${IP_master01}:2380,master02=https://${IP_master02}:2380 \\
   --initial-cluster-state new \\
   --data-dir=/var/lib/etcd
 Restart=on-failure

@@ -153,9 +153,11 @@ Install and configure HAProxy:
 
 ```
 # export DOMAIN="k8s-thw.local"
-# yum install -y haproxy
+# yum install -y haproxy bind-utils
+# for node in master00 master01 master02 ; do export IP_${node}="$(dig +short ${node})"; done
+ 
 
-# tee /etc/haproxy/haproxy.cfg << EOF
+# sudo tee /etc/haproxy/haproxy.cfg << EOF
 global
     log         127.0.0.1 local2
     chroot      /var/lib/haproxy
@@ -198,9 +200,9 @@ backend mgmt6443
     balance source
     mode tcp
     # MASTERS 6443
-    server master00.${DOMAIN} 192.168.111.72:6443 check
-    server master01.${DOMAIN} 192.168.111.173:6443 check
-    server master02.${DOMAIN} 192.168.111.230:6443 check
+    server master00.${DOMAIN} ${IP_master00}:6443 check
+    server master01.${DOMAIN} ${IP_master01}:6443 check
+    server master02.${DOMAIN} ${IP_master02}:6443 check
 EOF
 ```
 

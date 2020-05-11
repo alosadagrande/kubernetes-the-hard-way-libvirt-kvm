@@ -61,7 +61,6 @@ Generate a kubeconfig file for the kube-proxy service:
 
 ```
 {
-KUBERNETES_PUBLIC_ADDRESS=192.168.111.68
 
   kubectl config set-cluster kubernetes-the-hard-way \
     --certificate-authority=ca.pem \

@@ -108,7 +108,7 @@ POD_CIDR=$(cat /home/centos/pod_cidr.txt)
 Create the bridge network configuration file:
 
 ```
-> cat <<EOF | sudo tee /etc/cni/net.d/10-bridge.conf
+cat <<EOF | sudo tee /etc/cni/net.d/10-bridge.conf
 {
     "cniVersion": "0.3.1",
     "name": "bridge",
