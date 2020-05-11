@@ -14,7 +14,7 @@ The VM network is a network where all the VMs are executed. Actually this is a v
 
 > Since the baremetal server hosts the virtual infrastructure it is able to connect to any of the VMs. So, as we will see further in this tutorial, anytime you need to execute commands on any of the VMs, you need to connect first to the baremetal server.
 
-By default as commented in the previous sections, there is a default virtual network named as default configured:
+By default as commented in the previous sections, there is already a  default virtual network:
 ```
 kcli list network
 ```
@@ -59,10 +59,10 @@ Listing Networks...
 
 ## Images
 
-To be able to create instances, an image should be provided. In this guide we will use CentOS 7 as the base operating system for all the VMs. With kcli this is super easy, just download the cloud CentOS 7 image with kcli command line:
+To be able to create instances, an image should be provided. In this guide we will use CentOS 7 as the base operating system for all the VMs. With kcli, this is super easy, just download the cloud CentOS 7 image with kcli command line:
 
 ```
-kcli download image centos7 --pool default
+kcli download image centos7
 ```
 
 > Basically kcli is donwloading the latest CentOS 7 cloud image and placing it in the default pool we already defined  (/var/lib/libvirt/images/)
@@ -98,23 +98,20 @@ Create three compute instances which will host the Kubernetes **control plane**.
 - Execute "yum update -y" once the server is up and running. This command is injected into the cloudinit, so all instances are up to date since the very beginning.
 
 ```
-# for node in master00 master01 master02; do
- 	kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
-        -P cmds=["yum -y update"] -P reservedns=yes -P reserveip=yes -P reservehost=yes ${node}
-done
+# kcli create plan -u https://github.com/karmab/kcli-plans/blob/deployments/masters kubernetes-the-hard-way
 ```
 
 Verify your masters are up and running
 
 ```
 [root@smc-master k8s-th]# kcli list vm
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-|     Name     | Status |       Ips       |               Source               |  Plan | Profile | Report |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
++--------------+--------+-----------------+------------------------------------+-------------------------+---------+--------+
+|     Name     | Status |       Ips       |               Source               |  Plan                   | Profile | Report |
++--------------+--------+-----------------+------------------------------------+-------------------------+---------+--------+
+|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
+|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
+|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
++--------------+--------+-----------------+------------------------------------+-------------------------+---------+--------+
 ```
 
 ### Load Balancer
@@ -123,7 +120,7 @@ In order to have a proper Kubernetes high available environment, a Load balancer
 
 ```
 # kcli create vm -i centos7 -P disks=[20] -P nets=[k8s-net] -P memory=2048 -P numcpus=2 \
-  -P cmds=["yum -y update"] -P reserverdns=yes -P reserverip=yes -P reserverhost=yes loadbalancer
+  -P cmds=["yum -y update"] -P reservedns=yes -P reserveip=yes -P reservehost=yes -P plan=kubernetes-the-hard-way loadbalancer
 ```
 
 Check your **loadbalancer** instance is up and running
@@ -235,13 +232,7 @@ Create three compute instances which will host the Kubernetes worker nodes:
 > Each worker instance requires a pod subnet allocation from the Kubernetes cluster CIDR range. The pod subnet allocation will be used to configure container networking in a later exercise. The `/home/centos/pod_cidr.txt` file contains the subnet assigned to each worker.
 
 ```
-# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
- -P cmds=["yum -y update",'echo "10.200.0.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker00
-
-# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
-  -P cmds=["yum -y update",'echo "10.200.1.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker01
-# kcli create vm -i centos7 -P disks=[50] -P nets=[k8s-net] -P memory=16384 -P numcpus=4 \
--P cmds=["yum -y update",'echo "10.200.2.0/24" > /home/centos/pod_cidr.txt'] -P reservedns=yes -P reserveip=yes -P reservehost=yes worker02
+# kcli create plan -u https://github.com/karmab/kcli-plans/blob/deployments/workers -P workers=2 kubernetes-the-hard-way
 ```
 
 ### Verification
@@ -255,17 +246,17 @@ List the compute instances:
 > output
 
 ```
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-|     Name     | Status |       Ips       |               Source               |  Plan | Profile | Report |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
-| loadbalancer |   up   |  192.168.111.68 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   worker00   |   up   | 192.168.111.198 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   worker01   |   up   | 192.168.111.253 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-|   worker02   |   up   | 192.168.111.158 | CentOS-7-x86_64-GenericCloud.qcow2 | kvirt | centos7 |        |
-+--------------+--------+-----------------+------------------------------------+-------+---------+--------+
++--------------+--------+-----------------+------------------------------------+-------------------------+---------+--------+
+|     Name     | Status |       Ips       |               Source               |  Plan                   | Profile | Report |
++--------------+--------+-----------------+------------------------------------+-------------------------+---------+--------+
+| loadbalancer |   up   |  192.168.111.68 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
+|   master00   |   up   |  192.168.111.72 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
+|   master01   |   up   | 192.168.111.173 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
+|   master02   |   up   | 192.168.111.230 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
+|   worker00   |   up   | 192.168.111.198 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
+|   worker01   |   up   | 192.168.111.253 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
+|   worker02   |   up   | 192.168.111.158 | CentOS-7-x86_64-GenericCloud.qcow2 | kubernetes-the-hard-way | centos7 |        |
++--------------+--------+-----------------+------------------------------------+-------------------------+---------+--------+
 ```
 
 ## DNS Verification
@@ -315,11 +306,7 @@ PING loadbalancer.k8s-thw.local (192.168.111.68) 56(84) bytes of data.
 Finally, since all packages were updated during the bootstrap of the instance. we must reboot to run the latest ones
 
 ```
-for node in loadbalancer master00 master01 master02 worker00 worker01 worker02
-do
-	kcli restart vm $node
-done
+kcli restart plan kubernetes-the-hard-way
 ```
-
 
 Next: [Provisioning a CA and Generating TLS Certificates](04-certificate-authority.md)

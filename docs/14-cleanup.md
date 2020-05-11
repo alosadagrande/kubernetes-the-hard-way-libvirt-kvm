@@ -4,18 +4,10 @@ In this lab you will delete the compute resources created during this tutorial.
 
 ## Compute Instances
 
-Delete the controller and worker compute instances:
+Delete all the instance and the load balancer:
 
 ```
-kcli delete vm \
-  master00 master01 master02 \
-  worker00 worker01 worker02
-```
-
-Optionally, delete the load balancer instance:
-
-```
-kcli delete vm loadbalancer
+kcli delete plan kubernetes-the-hard-way
 ```
 
 ## Networking
@@ -31,7 +23,7 @@ kcli delete network k8s-net
 Optionally delete the image:
 
 ```
-rm -rf /var/lib/libvirt/images/CentOS-7-x86_64-GenericCloud.qcow2
+kcli delete image --yes CentOS-7-x86_64-GenericCloud.qcow2
 ```
 
 ## Project
